@@ -1,5 +1,6 @@
 # MasterGo2Figma Optimized v5
 
+本插件在https://github.com/XuWeinan123/MasterGo2Figma大佬的基础上优化🙏
 新增“保持图片比例”选项，用于减少 MasterGo 图片填充/裁剪导入 Figma 后被压扁、拉伸的问题。
 新增“蒙版转 Frame”和“图片保真 SVG”选项，用于处理蒙版填充丢失和 MasterGo 拉伸图片导入 Figma 后变形的问题。
 MasterGo 导出端新增「图标转 SVG」开关：关闭时尽量保留图层；开启时优先视觉保真，复杂图标会整体转 SVG。
