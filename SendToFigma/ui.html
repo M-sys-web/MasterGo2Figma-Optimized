@@ -1,0 +1,2443 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MasterGo to Figma Exporter</title>
+  <meta name="description" content="Export MasterGo layers and images to Figma high-fidelity JSON files.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #f8fafc;
+      --foreground: #0f172a;
+      --muted: #f1f5f9;
+      --muted-foreground: #64748b;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --input: #f8fafc;
+      --primary: #0066cc;
+      --primary-hover: #0052a3;
+      --primary-foreground: #ffffff;
+      --secondary: #f1f5f9;
+      --secondary-foreground: #0f172a;
+      --ring: rgba(0, 102, 204, 0.15);
+      --destructive: #ef4444;
+      --radius: 12px;
+      --font-sans: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    }
+
+    body {
+      margin: 0;
+      font: 13px/1.5 var(--font-sans);
+      color: var(--foreground);
+      background: var(--background);
+      -webkit-font-smoothing: antialiased;
+      width: 400px;
+      height: 100vh;
+      max-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* App Header */
+    .app-header {
+      padding: 16px 20px 6px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 0 0 auto;
+    }
+
+    .app-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #09090b 30%, var(--primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0;
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      color: var(--muted-foreground);
+      margin: 0;
+    }
+
+    main {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 0 16px 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+    }
+
+    .footer-actions {
+      flex: 0 0 auto;
+      padding: 10px 16px 12px 16px;
+      background: var(--background);
+      border-top: 1px solid rgba(226, 232, 240, 0.9);
+      position: relative;
+      z-index: 10001;
+      box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    h1, p {
+      margin: 0;
+    }
+
+    .muted {
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 8px -1px rgba(0, 0, 0, 0.03);
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .select-trigger {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--input);
+      color: var(--foreground);
+      padding: 0 12px;
+      font: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .select-trigger:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--ring);
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .page-list {
+      display: grid;
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--muted);
+      align-content: start;
+      grid-auto-rows: max-content;
+    }
+
+    .page-card {
+      padding: 0;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    .page-card .page-list {
+      border: 0;
+      border-radius: 0;
+    }
+
+    .page-header {
+      min-height: 48px;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.01);
+    }
+
+    .selection-title {
+      min-width: 0;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-button {
+      height: 28px;
+      padding: 0 10px;
+      font-size: 12px;
+      border-radius: 7px;
+      white-space: nowrap;
+    }
+
+    .empty-row {
+      min-height: 88px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      color: var(--muted-foreground);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .page-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 40px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    .page-row:hover:not(.disabled) {
+      background: rgba(0, 102, 204, 0.03);
+    }
+
+    .page-row:last-child {
+      border-bottom: 0;
+    }
+
+    .page-row input[type="checkbox"],
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--primary);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .page-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0 10px;
+      color: var(--muted-foreground);
+      font-size: 11px;
+      background: rgba(0, 0, 0, 0.02);
+      white-space: nowrap;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 100%);
+      border-radius: 999px;
+      transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .status-line {
+      min-height: 20px;
+      color: var(--foreground);
+      font-weight: 600;
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .summary {
+      color: var(--muted-foreground);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .rule-row {
+      min-height: 36px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .mode-card {
+      gap: 12px;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.03);
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .scope-segmented {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .option-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 12px;
+    }
+
+    .option-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 12px;
+      color: var(--foreground);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .option-label input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      margin: 0;
+      accent-color: var(--primary);
+      flex: 0 0 auto;
+    }
+
+    .option-label span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .page-row.skipped {
+      opacity: 0.45;
+    }
+
+    .segment {
+      min-width: 0;
+      min-height: 32px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      color: var(--muted-foreground);
+    }
+
+    .segment input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .segment:has(input:checked) {
+      background: var(--card);
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .relay-row {
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .relay-test-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .relay-test-row .button {
+      white-space: nowrap;
+    }
+
+    .text-input {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--input);
+      color: var(--foreground);
+      padding: 0 12px;
+      font: inherit;
+      outline: none;
+    }
+
+    .text-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--ring);
+    }
+
+    .file-name {
+      min-width: 0;
+      color: var(--muted-foreground);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .icon-button {
+      width: 26px;
+      height: 26px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted-foreground);
+      font: inherit;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-button:hover {
+      background: var(--secondary);
+      color: var(--foreground);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .button {
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--secondary);
+      color: var(--foreground);
+      padding: 0 16px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .button:hover:not(:disabled) {
+      background: #e2e8f0;
+      border-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .button-primary {
+      flex: 1;
+      width: 100%;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none;
+    }
+
+    .button-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      box-shadow: 0 2px 8px rgba(0, 102, 204, 0.15);
+    }
+
+    .button-primary:disabled {
+      opacity: 0.4;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      cursor: not-allowed;
+    }
+
+    .button-secondary {
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+    }
+
+    .button:disabled,
+    .button.disabled,
+    .page-row.disabled {
+      cursor: not-allowed;
+    }
+
+
+
+    .card {
+      border-color: var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      gap: 8px;
+    }
+
+    .page-card {
+      height: 280px;
+      flex: 0 0 280px;
+      padding: 0;
+    }
+
+    .page-header {
+      height: 48px;
+      min-height: 48px;
+      padding: 16px;
+      border-bottom-color: var(--border);
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+    }
+
+    .page-list {
+      height: 232px;
+      max-height: 232px;
+      border: 0;
+      border-radius: 0;
+      background: var(--background);
+      align-content: start;
+      grid-auto-rows: max-content;
+    }
+
+    .page-row {
+      height: 44px;
+      min-height: 44px;
+      padding: 12px 16px;
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      gap: 8px;
+      border-bottom: 0;
+    }
+
+    .page-row:first-child {
+      height: 40px;
+      min-height: 40px;
+    }
+
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      position: relative;
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--background);
+      cursor: pointer;
+      flex: 0 0 16px;
+    }
+
+    input[type="checkbox"]:checked {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+
+    input[type="checkbox"]:checked::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 5px;
+      height: 9px;
+      border: solid var(--primary-foreground);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    input[type="checkbox"]:indeterminate {
+      border-color: var(--border);
+      background: var(--background);
+    }
+
+    input[type="checkbox"]:indeterminate::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 8px;
+      height: 8px;
+      border: 0;
+      border-radius: 2px;
+      background: var(--primary);
+      transform: none;
+    }
+
+    input[type="checkbox"]:disabled {
+      cursor: not-allowed;
+    }
+
+    .checkbox-label {
+      gap: 8px;
+      font-size: 14px;
+      line-height: 16px;
+      font-weight: 400;
+      color: var(--foreground);
+    }
+
+    .page-name {
+      font-size: 13px;
+      line-height: 20px;
+      font-weight: 400;
+      color: var(--foreground);
+    }
+
+    .page-row input:checked + .page-name {
+      font-size: 14px;
+      line-height: 16px;
+    }
+
+    .muted,
+    #pageSummary {
+      font-size: 14px;
+      line-height: 16px;
+      color: var(--muted-foreground);
+    }
+
+    .badge {
+      height: 16px;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      font-size: 14px;
+      line-height: 16px;
+      color: var(--muted-foreground);
+      background: transparent;
+    }
+
+    .rules-card {
+      height: 64px;
+      flex: 0 0 64px;
+      padding: 16px;
+    }
+
+    .rule-row {
+      min-height: 32px;
+      display: grid;
+      grid-template-columns: 56px 24px minmax(0, 1fr) 24px;
+      gap: 0;
+      align-items: center;
+    }
+
+    .card-title {
+      grid-column: 1;
+      font-size: 14px;
+      line-height: 16px;
+      font-weight: 400;
+      color: var(--foreground);
+    }
+
+    .button {
+      height: 32px;
+      border: 0;
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 14px;
+      line-height: 16px;
+      font-weight: 400;
+    }
+
+    .button-secondary {
+      grid-column: 3 / 5;
+      justify-self: end;
+      width: 72px;
+      background: var(--secondary);
+      color: var(--secondary-foreground);
+    }
+
+    .relay-test-row .button-secondary {
+      grid-column: auto;
+      justify-self: stretch;
+      width: auto;
+      min-width: 88px;
+    }
+
+    .file-name {
+      grid-column: 3;
+      width: 100%;
+      text-align: left;
+      font-size: 13px;
+      line-height: 16px;
+      color: var(--muted-foreground);
+    }
+
+    .icon-button {
+      grid-column: 4;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      color: var(--muted-foreground);
+    }
+
+    .status-card {
+      min-height: 78px;
+      flex: 0 0 auto;
+      margin-top: 0;
+      padding: 12px;
+      gap: 6px;
+    }
+
+    .progress-track {
+      height: 8px;
+      margin-bottom: 8px;
+      border-radius: 3.361px;
+      background: var(--secondary);
+    }
+
+    .progress-bar {
+      background: var(--primary);
+    }
+
+    .status-line {
+      height: 20px;
+      font-size: 14px;
+      line-height: 20px;
+      font-weight: 600;
+      color: var(--foreground);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .summary {
+      min-height: 20px;
+      font-size: 13px;
+      line-height: 20px;
+      color: var(--muted-foreground);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .button-primary {
+      height: 40px;
+      width: 100%;
+      min-width: 80px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      position: static;
+      box-shadow: 0 8px 24px rgba(0, 102, 204, 0.18);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 58px;
+      height: 36px;
+      z-index: 10;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, 0.92) 100%);
+    }
+
+    .button-primary:disabled {
+      opacity: 0.4;
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    .button:disabled,
+    .button.disabled,
+    .page-row.disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+
+    .error {
+      color: var(--destructive);
+    }
+
+    main::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    main::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.24);
+      border-radius: 999px;
+    }
+
+    main::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+  
+
+    /* v14: resizable plugin window */
+    html {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      width: 100vw !important;
+      height: 100vh !important;
+      min-width: 360px;
+      min-height: 420px;
+    }
+
+    .window-tools {
+      position: fixed;
+      top: 8px;
+      right: 10px;
+      z-index: 10050;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px;
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      user-select: none;
+    }
+
+    .window-tools-label {
+      padding: 0 4px 0 6px;
+      color: var(--muted-foreground);
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .window-size-button {
+      width: 24px;
+      height: 24px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--foreground);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .window-size-button:hover {
+      background: var(--muted);
+    }
+
+    .window-resize-handle {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      z-index: 10060;
+      width: 28px;
+      height: 28px;
+      cursor: nwse-resize;
+      touch-action: none;
+      user-select: none;
+      border-bottom-right-radius: 8px;
+      background:
+        linear-gradient(135deg, transparent 0 52%, rgba(100, 116, 139, 0.16) 52% 58%, transparent 58% 100%),
+        linear-gradient(135deg, transparent 0 64%, rgba(100, 116, 139, 0.28) 64% 70%, transparent 70% 100%),
+        linear-gradient(135deg, transparent 0 76%, rgba(100, 116, 139, 0.42) 76% 82%, transparent 82% 100%);
+    }
+
+    .window-resize-handle:hover {
+      background:
+        linear-gradient(135deg, transparent 0 52%, rgba(0, 102, 204, 0.18) 52% 58%, transparent 58% 100%),
+        linear-gradient(135deg, transparent 0 64%, rgba(0, 102, 204, 0.34) 64% 70%, transparent 70% 100%),
+        linear-gradient(135deg, transparent 0 76%, rgba(0, 102, 204, 0.52) 76% 82%, transparent 82% 100%);
+    }
+
+    body.is-resizing, body.is-resizing * {
+      cursor: nwse-resize !important;
+      user-select: none !important;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="window-tools" aria-label="窗口大小">
+    <span class="window-tools-label">窗口</span>
+    <button class="window-size-button" type="button" data-window-size="small" title="小窗口">小</button>
+    <button class="window-size-button" type="button" data-window-size="medium" title="中窗口">中</button>
+    <button class="window-size-button" type="button" data-window-size="large" title="大窗口">大</button>
+  </div>
+  <div class="window-resize-handle" id="windowResizeHandle" title="拖拽调整窗口大小"></div>
+
+  <header class="app-header">
+    <h1 class="app-title">MasterGo to Figma</h1>
+    <p class="app-subtitle muted">导出设计资产包至 Figma 还原</p>
+  </header>
+  <main>
+    <section class="card mode-card">
+      <div class="card-title">传输方式</div>
+      <div class="segmented" id="transferModeGroup">
+        <label class="segment">
+          <input type="radio" name="transferMode" value="direct-zip" checked>
+          <span>直接生成 zip</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="transferMode" value="local-json-stream">
+          <span>流传输到本地</span>
+        </label>
+      </div>
+      <div class="relay-row hidden" id="relayConfig">
+        <div class="relay-test-row">
+          <input class="text-input" id="relayUrlInput" type="url" value="http://127.0.0.1:8765" spellcheck="false">
+          <button class="button button-secondary" id="testMainRelay" type="button">主线程测试</button>
+        </div>
+        <p class="muted" id="relayDiagnostic">先启动本地 Python 中继服务，再开始流传输。</p>
+      </div>
+    </section>
+
+    <section class="card mode-card">
+      <div class="card-title">导出范围</div>
+      <div class="segmented scope-segmented" id="scopeModeGroup">
+        <label class="segment">
+          <input type="radio" name="scopeMode" value="partial-pages" checked>
+          <span>勾选页面</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="scopeMode" value="current-page">
+          <span>当前页面</span>
+        </label>
+        <label class="segment">
+          <input type="radio" name="scopeMode" value="selected">
+          <span>选中画板</span>
+        </label>
+      </div>
+      <p class="muted" id="scopeHint">勾选页面适合分批迁移；当前页面/选中画板会忽略下方页面勾选。</p>
+    </section>
+
+    <section class="card mode-card">
+      <div class="card-title">减负选项</div>
+      <div class="option-grid">
+        <label class="option-label" title="导出时跳过隐藏图层及其子图层">
+          <input id="skipHiddenLayers" type="checkbox" checked>
+          <span>跳过隐藏图层</span>
+        </label>
+        <label class="option-label" title="页面名包含 草稿 / draft 时跳过">
+          <input id="skipDraftPages" type="checkbox" checked>
+          <span>跳过草稿页</span>
+        </label>
+        <label class="option-label" title="页面名包含 外部控件 / controls / external 时跳过">
+          <input id="skipExternalControls" type="checkbox" checked>
+          <span>跳过外部控件</span>
+        </label>
+        <label class="option-label" title="超过 3MB 的图片会尝试按最大边 2000px 压缩后再写入 zip/本地服务">
+          <input id="compressLargeImages" type="checkbox" checked>
+          <span>大图片自动压缩</span>
+        </label>
+        <label class="option-label" title="开启后会把疑似图标/复杂矢量整体转 SVG，视觉更稳但图层会合并；关闭则尽量保留原图层结构">
+          <input id="iconsAsSvg" type="checkbox">
+          <span>图标转 SVG</span>
+        </label>
+        <label class="option-label" title="把圆角卡片/图片裁剪这类蒙版还原为 Frame + 裁剪内容，避免蒙版填充在 Figma 中不可见">
+          <input id="masksAsFrames" type="checkbox" checked>
+          <span>蒙版转 Frame</span>
+        </label>
+        <label class="option-label" title="尽量保持图片原始比例，避免 MasterGo 中被裁剪/拉伸过的图片在 Figma 中被强行压扁；保留图层不合并">
+          <input id="preserveImageAspect" type="checkbox" checked>
+          <span>保持图片比例</span>
+        </label>
+        <label class="option-label" title="把带图片填充的图层整体转 SVG，优先保视觉比例，适合 MasterGo 中被拉伸过的图片；会牺牲部分可编辑性">
+          <input id="imagesAsSvg" type="checkbox">
+          <span>图片保真 SVG</span>
+        </label>
+      </div>
+      <p class="muted">建议保持基础减负项和“保持图片比例”开启；图片仍变形时再开启“图片保真 SVG”。</p>
+    </section>
+
+
+    <section class="card page-card">
+      <div class="page-header">
+        <label class="checkbox-label" id="selectAllLabel">
+          <input id="selectAllPages" type="checkbox">
+          <span>全选</span>
+        </label>
+        <div class="selection-title hidden" id="selectionTitle">选中内容</div>
+        <button class="button button-secondary mini-button hidden" id="refreshSelection" type="button">刷新</button>
+        <span class="muted" id="pageSummary">正在读取页面...</span>
+      </div>
+      <div class="page-list" id="pageList"></div>
+    </section>
+
+    <section class="card status-card">
+      <div class="progress-track" aria-hidden="true">
+        <div class="progress-bar" id="bar"></div>
+      </div>
+      <div class="status-line" id="status">准备就绪</div>
+      <div class="summary" id="summary">选择页面后可导出 MasterGo2Figma JSON zip。</div>
+    </section>
+  </main>
+  <footer class="footer-actions">
+    <button class="button button-primary" id="start" disabled>开始</button>
+  </footer>
+
+  <script>
+    const selectAllPages = document.getElementById("selectAllPages");
+    const selectAllLabel = document.getElementById("selectAllLabel");
+    const selectionTitle = document.getElementById("selectionTitle");
+    const refreshSelection = document.getElementById("refreshSelection");
+    const pageList = document.getElementById("pageList");
+    const pageSummary = document.getElementById("pageSummary");
+    const start = document.getElementById("start");
+    const bar = document.getElementById("bar");
+    const status = document.getElementById("status");
+    const summary = document.getElementById("summary");
+    const transferModeInputs = [...document.querySelectorAll("input[name='transferMode']")];
+    const scopeModeInputs = [...document.querySelectorAll("input[name='scopeMode']")];
+    const scopeHint = document.getElementById("scopeHint");
+    const skipHiddenLayers = document.getElementById("skipHiddenLayers");
+    const skipDraftPages = document.getElementById("skipDraftPages");
+    const skipExternalControls = document.getElementById("skipExternalControls");
+    const compressLargeImages = document.getElementById("compressLargeImages");
+    const iconsAsSvg = document.getElementById("iconsAsSvg");
+    const masksAsFrames = document.getElementById("masksAsFrames");
+    const imagesAsSvg = document.getElementById("imagesAsSvg");
+    const preserveImageAspect = document.getElementById("preserveImageAspect");
+    const optionInputs = [skipHiddenLayers, skipDraftPages, skipExternalControls, compressLargeImages, iconsAsSvg, masksAsFrames, preserveImageAspect, imagesAsSvg];
+    const relayConfig = document.getElementById("relayConfig");
+    const relayUrlInput = document.getElementById("relayUrlInput");
+    const testMainRelay = document.getElementById("testMainRelay");
+    const relayDiagnostic = document.getElementById("relayDiagnostic");
+
+    const TRANSFER_MODE_DIRECT_ZIP = "direct-zip";
+    const TRANSFER_MODE_LOCAL_JSON_STREAM = "local-json-stream";
+    const EXPORT_TARGET_LOCAL_RELAY = "local-relay";
+    const DEFAULT_RELAY_URL = "http://127.0.0.1:8765";
+    const LARGE_IMAGE_THRESHOLD_BYTES = 3 * 1024 * 1024;
+    const LARGE_IMAGE_MAX_DIMENSION = 2000;
+    const LARGE_IMAGE_JPEG_QUALITY = 0.82;
+    let isBusy = false;
+    let hasRules = true;
+    let pages = [];
+    let selectedNodes = [];
+    let currentPageId = "";
+    let currentPageName = "";
+    let exportTransfer = null;
+    let localRelayTransfer = null;
+    let currentTransferMode = TRANSFER_MODE_DIRECT_ZIP;
+    let operationStartMs = 0;
+    let pendingExportQueue = null;
+
+    function send(pluginMessage) {
+      parent.postMessage({ pluginMessage }, "*");
+    }
+
+    const WINDOW_SIZE_KEY = "mastergo2figma.pluginWindowSize.v14";
+    const WINDOW_SIZE_PRESETS = {
+      small: { width: 380, height: 560 },
+      medium: { width: 480, height: 680 },
+      large: { width: 640, height: 780 }
+    };
+    const WINDOW_SIZE_LIMITS = { minWidth: 360, minHeight: 420, maxWidth: 960, maxHeight: 900 };
+    let pluginWindowSize = readSavedWindowSize();
+
+    function readSavedWindowSize() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(WINDOW_SIZE_KEY) || "null");
+        if (saved && Number.isFinite(saved.width) && Number.isFinite(saved.height)) {
+          return clampWindowSize(saved.width, saved.height);
+        }
+      } catch (_) {}
+      return clampWindowSize(window.innerWidth || 400, window.innerHeight || 640);
+    }
+
+    function clampWindowSize(width, height) {
+      return {
+        width: Math.round(Math.min(WINDOW_SIZE_LIMITS.maxWidth, Math.max(WINDOW_SIZE_LIMITS.minWidth, Number(width) || 400))),
+        height: Math.round(Math.min(WINDOW_SIZE_LIMITS.maxHeight, Math.max(WINDOW_SIZE_LIMITS.minHeight, Number(height) || 640)))
+      };
+    }
+
+    function resizePluginWindow(width, height, persist = true) {
+      pluginWindowSize = clampWindowSize(width, height);
+      if (persist) {
+        try { localStorage.setItem(WINDOW_SIZE_KEY, JSON.stringify(pluginWindowSize)); } catch (_) {}
+      }
+      send({ type: "resize", width: pluginWindowSize.width, height: pluginWindowSize.height });
+    }
+
+    function ensurePluginWindowAtLeast(width, height) {
+      const next = clampWindowSize(
+        Math.max(pluginWindowSize.width, Number(width) || pluginWindowSize.width),
+        Math.max(pluginWindowSize.height, Number(height) || pluginWindowSize.height)
+      );
+      resizePluginWindow(next.width, next.height, false);
+    }
+
+    function initManualWindowResize(defaultWidth = 400, defaultHeight = 640) {
+      pluginWindowSize = clampWindowSize(pluginWindowSize.width || defaultWidth, pluginWindowSize.height || defaultHeight);
+      if (pluginWindowSize.width !== defaultWidth || pluginWindowSize.height !== defaultHeight) {
+        setTimeout(() => resizePluginWindow(pluginWindowSize.width, pluginWindowSize.height, false), 50);
+      }
+
+      document.querySelectorAll("[data-window-size]").forEach(button => {
+        button.addEventListener("click", () => {
+          const preset = WINDOW_SIZE_PRESETS[button.dataset.windowSize] || WINDOW_SIZE_PRESETS.medium;
+          resizePluginWindow(preset.width, preset.height, true);
+        });
+      });
+
+      const handle = document.getElementById("windowResizeHandle");
+      if (!handle) return;
+      let startX = 0;
+      let startY = 0;
+      let startWidth = pluginWindowSize.width;
+      let startHeight = pluginWindowSize.height;
+      let active = false;
+
+      function onMove(event) {
+        if (!active) return;
+        const clientX = event.clientX ?? (event.touches && event.touches[0] && event.touches[0].clientX) ?? startX;
+        const clientY = event.clientY ?? (event.touches && event.touches[0] && event.touches[0].clientY) ?? startY;
+        resizePluginWindow(startWidth + clientX - startX, startHeight + clientY - startY, false);
+      }
+
+      function onUp() {
+        if (!active) return;
+        active = false;
+        document.body.classList.remove("is-resizing");
+        try { localStorage.setItem(WINDOW_SIZE_KEY, JSON.stringify(pluginWindowSize)); } catch (_) {}
+        window.removeEventListener("mousemove", onMove, true);
+        window.removeEventListener("mouseup", onUp, true);
+        window.removeEventListener("touchmove", onMove, true);
+        window.removeEventListener("touchend", onUp, true);
+      }
+
+      function onDown(event) {
+        active = true;
+        startX = event.clientX ?? (event.touches && event.touches[0] && event.touches[0].clientX) ?? 0;
+        startY = event.clientY ?? (event.touches && event.touches[0] && event.touches[0].clientY) ?? 0;
+        startWidth = pluginWindowSize.width || window.innerWidth || defaultWidth;
+        startHeight = pluginWindowSize.height || window.innerHeight || defaultHeight;
+        document.body.classList.add("is-resizing");
+        event.preventDefault();
+        window.addEventListener("mousemove", onMove, true);
+        window.addEventListener("mouseup", onUp, true);
+        window.addEventListener("touchmove", onMove, true);
+        window.addEventListener("touchend", onUp, true);
+      }
+
+      handle.addEventListener("mousedown", onDown);
+      handle.addEventListener("touchstart", onDown, { passive: false });
+    }
+
+
+    function setBusy(nextBusy) {
+      isBusy = nextBusy;
+      start.disabled = nextBusy || !hasRules || !hasValidExportScope();
+      selectAllPages.disabled = nextBusy || pages.length === 0 || getScopeMode() !== "partial-pages";
+      relayUrlInput.disabled = nextBusy;
+      testMainRelay.disabled = nextBusy;
+      refreshSelection.disabled = nextBusy;
+      transferModeInputs.forEach(input => {
+        input.disabled = nextBusy;
+      });
+      scopeModeInputs.forEach(input => {
+        input.disabled = nextBusy;
+      });
+      optionInputs.forEach(input => {
+        input.disabled = nextBusy;
+      });
+      pageList.querySelectorAll("input").forEach(input => {
+        const row = input.closest(".page-row");
+        const scopeMode = getScopeMode();
+        const scopeDisabled = scopeMode !== "partial-pages" && scopeMode !== "selected";
+        const optionDisabled = row && row.dataset.skipped === "true";
+        input.disabled = nextBusy || scopeDisabled || optionDisabled;
+        row.classList.toggle("disabled", nextBusy || scopeDisabled || optionDisabled);
+      });
+    }
+
+    function getTransferMode() {
+      const checked = transferModeInputs.find(input => input.checked);
+      return checked && checked.value === TRANSFER_MODE_LOCAL_JSON_STREAM
+        ? TRANSFER_MODE_LOCAL_JSON_STREAM
+        : TRANSFER_MODE_DIRECT_ZIP;
+    }
+
+    function getScopeMode() {
+      const checked = scopeModeInputs.find(input => input.checked);
+      return checked ? checked.value : "partial-pages";
+    }
+
+    function hasValidExportScope() {
+      const scopeMode = getScopeMode();
+      if (scopeMode === "partial-pages") return getSelectedPageIds().length > 0;
+      if (scopeMode === "selected") return getSelectedNodeIds().length > 0;
+      return true;
+    }
+
+    function getExportOptions() {
+      return {
+        skipHiddenLayers: skipHiddenLayers.checked,
+        skipDraftPages: skipDraftPages.checked,
+        skipExternalControls: skipExternalControls.checked,
+        compressLargeImages: compressLargeImages.checked,
+        largeImageThresholdBytes: LARGE_IMAGE_THRESHOLD_BYTES,
+        largeImageMaxDimension: LARGE_IMAGE_MAX_DIMENSION,
+        largeImageJpegQuality: LARGE_IMAGE_JPEG_QUALITY,
+        iconsAsSvg: iconsAsSvg.checked,
+        masksAsFrames: masksAsFrames.checked,
+        preserveImageAspect: preserveImageAspect.checked,
+        imagesAsSvg: imagesAsSvg.checked
+      };
+    }
+
+    function isDraftPageName(name) {
+      const text = String(name || "").toLowerCase();
+      return text.includes("草稿") || text.includes("draft");
+    }
+
+    function isExternalControlsPageName(name) {
+      const text = String(name || "").toLowerCase();
+      return text.includes("外部控件") || text.includes("external") || text.includes("控件库") || text.includes("controls");
+    }
+
+    function isPageSkippedByOptions(page) {
+      if (!page) return false;
+      if (skipDraftPages.checked && (page.isDraftPage || isDraftPageName(page.name))) return true;
+      if (skipExternalControls.checked && (page.isExternalControlsPage || isExternalControlsPageName(page.name))) return true;
+      return false;
+    }
+
+    function normalizeRelayUrl(value) {
+      const text = String(value || "").trim() || DEFAULT_RELAY_URL;
+      return text.replace(/\/+$/, "");
+    }
+
+    function updateTransferMode() {
+      currentTransferMode = getTransferMode();
+      const isStream = currentTransferMode === TRANSFER_MODE_LOCAL_JSON_STREAM;
+      relayConfig.classList.toggle("hidden", !isStream);
+
+      // Dynamic resize post message
+      ensurePluginWindowAtLeast(400, isStream ? 660 : 620);
+
+      if (pendingExportQueue && pendingExportQueue.nextPageId && !isBusy) {
+        renderExportQueueStatus(pendingExportQueue);
+      } else if (isStream) {
+        summary.textContent = "JSON 和图片会流式写入本地服务，完成后生成 zip。";
+        relayDiagnostic.textContent = "先启动本地 Python 中继服务，再开始流传输。";
+        relayDiagnostic.classList.remove("error");
+      } else {
+        summary.textContent = "适合较小文件，导出完成后直接下载 zip。";
+      }
+      setBusy(isBusy);
+    }
+
+    function updateScopeMode() {
+      const scopeMode = getScopeMode();
+      const pageSelectionActive = scopeMode === "partial-pages";
+      if (scopeMode === "current-page") {
+        scopeHint.textContent = "只导出当前正在打开的页面，下方页面勾选会被忽略。";
+      } else if (scopeMode === "selected") {
+        scopeHint.textContent = "只导出当前页面中已选中的顶层画板/图层，适合迁移单个画板。";
+      } else {
+        scopeHint.textContent = "按下方勾选的页面分批导出；建议一次 1–3 页。";
+      }
+      selectAllLabel.classList.toggle("hidden", !pageSelectionActive);
+      selectionTitle.classList.toggle("hidden", scopeMode !== "selected");
+      refreshSelection.classList.toggle("hidden", scopeMode !== "selected");
+      pageList.classList.toggle("disabled", !pageSelectionActive);
+      if (scopeMode === "selected") {
+        renderSelectedNodes(selectedNodes);
+      } else {
+        renderPages(pages);
+      }
+    }
+
+    function setProgress(current, total, label) {
+      const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+      bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+      status.textContent = label || "处理中...";
+      status.classList.remove("error");
+      summary.textContent = total > 0
+        ? `${current}/${total} 个图层，${percent}% · 预计剩余 ${formatEta(current, total)}`
+        : "正在准备任务...";
+    }
+
+    function setFileProgress(current, total, label) {
+      const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+      bar.style.width = total > 0 ? `${Math.max(0, Math.min(100, percent))}%` : "8%";
+      if (label) {
+        status.textContent = label;
+        status.classList.remove("error");
+      }
+      summary.textContent = total > 0 ? `${current}/${total} 个文件，${percent}%` : `${current} 个文件`;
+    }
+
+    function formatEta(current, total) {
+      if (!operationStartMs || !total || current <= 0 || current >= total) return "--";
+      const elapsed = Date.now() - operationStartMs;
+      const remainingMs = Math.max(0, (elapsed / current) * (total - current));
+      const seconds = Math.ceil(remainingMs / 1000);
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      const rest = seconds % 60;
+      return `${minutes}m ${rest}s`;
+    }
+
+    function formatBytes(value) {
+      const bytes = Number(value) || 0;
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+      return `${Math.round(bytes / 1024 / 1024)} MB`;
+    }
+
+    function renderPages(nextPages) {
+      pages = nextPages || [];
+      pageList.innerHTML = "";
+      const defaultPageId = pendingExportQueue && pendingExportQueue.nextPageId
+        ? pendingExportQueue.nextPageId
+        : currentPageId;
+      for (const page of pages) {
+        const row = document.createElement("label");
+        const skipped = isPageSkippedByOptions(page);
+        row.className = `page-row${skipped ? " skipped" : ""}`;
+        row.dataset.skipped = skipped ? "true" : "false";
+        const checked = !skipped && page.id === defaultPageId ? "checked" : "";
+        const badgeText = skipped ? "跳过" : (page.childCount || 0);
+        row.innerHTML = `
+          <input type="checkbox" value="${escapeHtml(page.id)}" ${checked} ${skipped ? "disabled" : ""}>
+          <span class="page-name" title="${escapeHtml(page.name)}">${escapeHtml(page.name)}</span>
+          <span class="badge">${badgeText}</span>
+        `;
+        pageList.appendChild(row);
+      }
+      pageList.querySelectorAll("input").forEach(input => {
+        input.onchange = updatePageSelection;
+      });
+      updatePageSelection();
+      renderExportQueueStatus(pendingExportQueue);
+    }
+
+
+    function renderSelectedNodes(nextSelectedNodes) {
+      selectedNodes = nextSelectedNodes || [];
+      pageList.innerHTML = "";
+      if (!selectedNodes.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-row";
+        empty.innerHTML = "未读取到选中画板/图层。<br>请先在画布中选中要导出的顶层画板/图层，再打开插件；如果插件已打开，选中后点“刷新”。";
+        pageList.appendChild(empty);
+        updatePageSelection();
+        return;
+      }
+      for (const node of selectedNodes) {
+        const row = document.createElement("label");
+        row.className = "page-row";
+        const name = node.name || "未命名图层";
+        const badgeText = formatSelectedNodeBadge(node);
+        row.innerHTML = `
+          <input type="checkbox" value="${escapeHtml(node.id)}" checked>
+          <span class="page-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="badge">${escapeHtml(badgeText)}</span>
+        `;
+        pageList.appendChild(row);
+      }
+      pageList.querySelectorAll("input").forEach(input => {
+        input.onchange = updatePageSelection;
+      });
+      updatePageSelection();
+    }
+
+    function formatSelectedNodeBadge(node) {
+      const type = String(node && node.type || "图层").replace(/_/g, " ");
+      const childCount = Number(node && node.childCount) || 0;
+      if (childCount > 0) return `${childCount} 层`;
+      return type;
+    }
+
+    function applyExportQueueSelection(queue) {
+      if (!queue || !queue.nextPageId) return;
+      pageList.querySelectorAll("input").forEach(input => {
+        input.checked = input.value === queue.nextPageId;
+      });
+      updatePageSelection();
+      renderExportQueueStatus(queue);
+    }
+
+    function renderExportQueueStatus(queue) {
+      if (!queue || !queue.nextPageId || isBusy) return;
+      const nextName = queue.nextPageName || queue.nextPageId;
+      status.textContent = `导出队列：下一页 ${nextName}`;
+      status.classList.remove("error");
+      summary.textContent = `剩余 ${queue.remainingCount || 0} 页，点击开始继续。`;
+    }
+
+    function getSelectedPageIds() {
+      return [...pageList.querySelectorAll("input:checked")].map(input => input.value);
+    }
+
+    function getSelectedNodeIds() {
+      if (getScopeMode() !== "selected") return [];
+      return [...pageList.querySelectorAll("input:checked")].map(input => input.value);
+    }
+
+    function updatePageSelection() {
+      const scopeMode = getScopeMode();
+      if (scopeMode === "selected") {
+        const selectedIds = getSelectedNodeIds();
+        pageSummary.textContent = selectedIds.length > 0 ? `${selectedIds.length} 个选中画板/图层` : "未选中";
+        selectAllPages.checked = false;
+        selectAllPages.indeterminate = false;
+        setBusy(isBusy);
+        return;
+      }
+      pageList.querySelectorAll(".page-row").forEach(row => {
+        const input = row.querySelector("input");
+        const page = pages.find(nextPage => nextPage.id === input.value);
+        const skipped = isPageSkippedByOptions(page);
+        row.dataset.skipped = skipped ? "true" : "false";
+        row.classList.toggle("skipped", skipped);
+        row.querySelector(".badge").textContent = skipped ? "跳过" : ((page && page.childCount) || 0);
+        if (skipped) input.checked = false;
+      });
+      const selectablePageCount = pages.filter(page => !isPageSkippedByOptions(page)).length;
+      const selectedIds = getSelectedPageIds();
+      const selectedSet = new Set(selectedIds);
+      const selectedPages = pages.filter(page => selectedSet.has(page.id));
+      const selectedLayerCount = selectedPages.reduce((sum, page) => sum + (page.childCount || 0), 0);
+      if (scopeMode === "current-page") {
+        pageSummary.textContent = "当前页面";
+      } else if (scopeMode === "selected") {
+        pageSummary.textContent = "选中画板/图层";
+      } else {
+        pageSummary.textContent = `${selectedPages.length} page${selectedPages.length === 1 ? "" : "s"}, ${selectedLayerCount} layers`;
+      }
+      selectAllPages.checked = selectablePageCount > 0 && selectedIds.length === selectablePageCount;
+      selectAllPages.indeterminate = selectedIds.length > 0 && selectedIds.length < selectablePageCount;
+      setBusy(isBusy);
+    }
+
+    selectAllPages.onchange = () => {
+      pageList.querySelectorAll("input").forEach(input => {
+        const row = input.closest(".page-row");
+        if (row && row.dataset.skipped === "true") {
+          input.checked = false;
+        } else {
+          input.checked = selectAllPages.checked;
+        }
+      });
+      updatePageSelection();
+    };
+
+    transferModeInputs.forEach(input => {
+      input.onchange = updateTransferMode;
+    });
+
+    scopeModeInputs.forEach(input => {
+      input.onchange = updateScopeMode;
+    });
+
+    optionInputs.forEach(input => {
+      input.onchange = () => {
+        updatePageSelection();
+      };
+    });
+
+    refreshSelection.onclick = () => {
+      if (isBusy) return;
+      status.textContent = "正在刷新当前选中画板/图层...";
+      status.classList.remove("error");
+      summary.textContent = "请确认画布中已经选中要导出的顶层画板/图层。";
+      send({ type: "refresh-selection" });
+    };
+
+    testMainRelay.onclick = () => {
+      if (isBusy) return;
+      const relayUrl = normalizeRelayUrl(relayUrlInput.value);
+      relayUrlInput.value = relayUrl;
+      relayDiagnostic.textContent = "正在从插件主线程测试 /health...";
+      relayDiagnostic.classList.remove("error");
+      status.textContent = "正在测试主线程直连本地服务...";
+      status.classList.remove("error");
+      summary.textContent = "这会验证 code.ts 是否可以绕过 UI bridge 直接访问 localhost。";
+      testMainRelay.disabled = true;
+      send({
+        type: "test-main-fetch-relay",
+        relayUrl
+      });
+    };
+
+    start.onclick = async () => {
+      if (isBusy) return;
+      const scopeMode = getScopeMode();
+      const pageIds = scopeMode === "partial-pages" ? getSelectedPageIds() : [];
+      const selectedNodeIds = scopeMode === "selected" ? getSelectedNodeIds() : [];
+      if (scopeMode === "partial-pages" && pageIds.length === 0) {
+        status.textContent = "请至少选择一个页面";
+        status.classList.add("error");
+        summary.textContent = "";
+        return;
+      }
+      if (scopeMode === "selected" && selectedNodeIds.length === 0) {
+        status.textContent = "没有读取到选中画板/图层";
+        status.classList.add("error");
+        summary.textContent = "请先选中画板/图层，再点击“刷新”或重新打开插件。";
+        return;
+      }
+
+      setBusy(true);
+      operationStartMs = Date.now();
+      const transferMode = getTransferMode();
+      const relayUrl = normalizeRelayUrl(relayUrlInput.value);
+      const exportOptions = getExportOptions();
+
+      if (transferMode === TRANSFER_MODE_LOCAL_JSON_STREAM) {
+        try {
+          relayUrlInput.value = relayUrl;
+          setProgress(0, 0, "正在连接本地中继服务...");
+          await ensureLocalRelayAvailable(relayUrl);
+        } catch (error) {
+          status.textContent = error.message || "本地中继服务连接失败";
+          status.classList.add("error");
+          summary.textContent = "请先运行 python3 tools/mastergo_relay_server.py。";
+          setBusy(false);
+          return;
+        }
+        setProgress(0, 0, pageIds.length > 1 ? `正在导出 ${pageIds.length} 个页面...` : (scopeMode === "selected" ? "正在导出选中画板..." : "正在启动流传输..."));
+      } else {
+        setProgress(0, 0, pageIds.length > 1 ? `正在导出 ${pageIds.length} 个页面...` : (scopeMode === "selected" ? "正在导出选中画板..." : "正在启动导出..."));
+      }
+
+      send({
+        type: "start-export",
+        transferMode,
+        relayUrl: transferMode === TRANSFER_MODE_LOCAL_JSON_STREAM ? relayUrl : "",
+        scope: scopeMode,
+        pageIds,
+        selectedNodeIds,
+        ...exportOptions
+      });
+    };
+
+    function getPluginMessage(event) {
+      if (!event || !event.data) return null;
+      if (event.data.pluginMessage) return event.data.pluginMessage;
+      return event.data;
+    }
+
+    async function ensureLocalRelayAvailable(relayUrl) {
+      let response;
+      try {
+        response = await fetch(`${relayUrl}/health`, { method: "GET" });
+      } catch (error) {
+        throw new Error(`无法连接本地中继服务：${relayUrl}`);
+      }
+      const payload = await readRelayResponse(response);
+      if (!payload.ok) throw new Error(payload.error || "本地中继服务不可用");
+      return payload;
+    }
+
+    function isLocalRelayMessage(message) {
+      return message && message.target === EXPORT_TARGET_LOCAL_RELAY;
+    }
+
+    function getLocalRelayTransfer(message) {
+      if (!localRelayTransfer || localRelayTransfer.transferId !== message.transferId) return null;
+      return localRelayTransfer;
+    }
+
+    function createLocalRelayEndpoint(transfer, suffix) {
+      return `${transfer.relayUrl}/transfers/${encodeURIComponent(transfer.transferId)}${suffix}`;
+    }
+
+    async function readRelayResponse(response) {
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch (_) {
+        payload = null;
+      }
+      if (!response.ok) {
+        const message = payload && payload.error ? payload.error : `${response.status} ${response.statusText}`;
+        throw new Error(message);
+      }
+      return payload || { ok: true };
+    }
+
+    async function postRelayJson(transfer, suffix, data) {
+      const response = await fetch(createLocalRelayEndpoint(transfer, suffix), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data || {})
+      });
+      const payload = await readRelayResponse(response);
+      if (payload.ok === false) throw new Error(payload.error || "本地中继服务返回失败");
+      return payload;
+    }
+
+    async function postRelayBytes(transfer, suffix, bytes) {
+      const response = await fetch(createLocalRelayEndpoint(transfer, suffix), {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: bytes
+      });
+      const payload = await readRelayResponse(response);
+      if (payload.ok === false) throw new Error(payload.error || "本地中继服务返回失败");
+      return payload;
+    }
+
+    function enqueueLocalRelay(transfer, task) {
+      const next = transfer.queue.then(() => {
+        if (transfer.error) throw transfer.error;
+        return task();
+      });
+      transfer.queue = next.catch(error => {
+        transfer.error = error instanceof Error ? error : new Error(String(error));
+      });
+      return next;
+    }
+
+    function isImageAssetPath(path) {
+      return /^assets\/image-\d+\.(png|jpg|jpeg|webp|bin)$/i.test(String(path || ""));
+    }
+
+    function shouldCompressFile(path, size) {
+      return compressLargeImages.checked && isImageAssetPath(path) && Number(size || 0) >= LARGE_IMAGE_THRESHOLD_BYTES;
+    }
+
+    function concatUint8Arrays(chunks) {
+      const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return out;
+    }
+
+    function blobToBytes(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.onerror = () => reject(reader.error || new Error("图片压缩读取失败"));
+        reader.readAsArrayBuffer(blob);
+      });
+    }
+
+    function canvasToBlob(canvas, mime, quality) {
+      return new Promise(resolve => {
+        canvas.toBlob(blob => resolve(blob), mime, quality);
+      });
+    }
+
+    async function compressImageBytesIfNeeded(path, bytes) {
+      if (!shouldCompressFile(path, bytes.length)) return bytes;
+      try {
+        const lowerPath = String(path || "").toLowerCase();
+        const inputMime = lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg") ? "image/jpeg" : lowerPath.endsWith(".webp") ? "image/webp" : "image/png";
+        const blob = new Blob([bytes], { type: inputMime });
+        const bitmap = await createImageBitmap(blob);
+        const maxSide = Math.max(bitmap.width, bitmap.height);
+        const ratio = maxSide > LARGE_IMAGE_MAX_DIMENSION ? LARGE_IMAGE_MAX_DIMENSION / maxSide : 1;
+        const width = Math.max(1, Math.round(bitmap.width * ratio));
+        const height = Math.max(1, Math.round(bitmap.height * ratio));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        if (bitmap.close) bitmap.close();
+        const outputMime = inputMime === "image/jpeg" ? "image/jpeg" : "image/png";
+        const outBlob = await canvasToBlob(canvas, outputMime, LARGE_IMAGE_JPEG_QUALITY);
+        if (!outBlob) return bytes;
+        const outBytes = await blobToBytes(outBlob);
+        return outBytes.length > 0 && outBytes.length < bytes.length ? outBytes : bytes;
+      } catch (error) {
+        console.warn("[MasterGo2Figma UI] 大图片压缩失败，已保留原图：", path, error);
+        return bytes;
+      }
+    }
+
+    function startLocalRelayTransfer(message) {
+      localRelayTransfer = {
+        transferId: message.transferId,
+        relayUrl: normalizeRelayUrl(message.relayUrl),
+        filename: message.filename || "mastergo2figma",
+        fileCount: message.fileCount || 0,
+        receivedFiles: 0,
+        totalBytes: 0,
+        stats: message.stats || null,
+        files: {},
+        queue: Promise.resolve(),
+        error: null,
+        outputDir: ""
+      };
+      const transfer = localRelayTransfer;
+      enqueueLocalRelay(transfer, () => postRelayJson(transfer, "/start", {
+        filename: transfer.filename,
+        startedAt: new Date().toISOString()
+      })).catch(() => {});
+      status.textContent = "本地流传输已开始";
+      status.classList.remove("error");
+    }
+
+    function startLocalRelayFile(message) {
+      const transfer = getLocalRelayTransfer(message);
+      if (!transfer) return;
+      const compress = shouldCompressFile(message.path, message.size || 0);
+      transfer.files[message.index] = {
+        path: message.path,
+        size: message.size || 0,
+        chunks: message.totalChunks || 0,
+        kind: message.kind,
+        ended: false,
+        compress,
+        bufferedChunks: compress ? [] : null
+      };
+      if (!compress) {
+        enqueueLocalRelay(transfer, () => postRelayJson(transfer, "/files/start", {
+          index: message.index,
+          path: message.path,
+          kind: message.kind,
+          size: message.size || 0,
+          totalChunks: message.totalChunks || 0
+        })).catch(() => {});
+      }
+    }
+
+    function appendLocalRelayFileChunk(message) {
+      const transfer = getLocalRelayTransfer(message);
+      if (!transfer) return;
+      const file = transfer.files[message.index];
+      const bytes = message.bytes !== undefined
+        ? normalizeBytes(message.bytes)
+        : new TextEncoder().encode(message.content || "");
+      if (file && file.compress) {
+        file.bufferedChunks.push(bytes);
+        return;
+      }
+      transfer.totalBytes += bytes.length;
+      enqueueLocalRelay(transfer, () => postRelayBytes(
+        transfer,
+        `/files/chunk?index=${encodeURIComponent(message.index)}&chunkIndex=${encodeURIComponent(message.chunkIndex || 0)}`,
+        bytes
+      )).catch(() => {});
+    }
+
+    async function acknowledgeLocalRelayFile(message) {
+      const transfer = getLocalRelayTransfer(message);
+      let success = false;
+      let errorMessage = "";
+      let path = message.path || "";
+
+      try {
+        if (!transfer) throw new Error("本地流传输不存在或已被重置");
+        const file = transfer.files[message.index];
+        path = path || (file && file.path) || "";
+        if (file && file.compress) {
+          const originalBytes = concatUint8Arrays(file.bufferedChunks || []);
+          const finalBytes = await compressImageBytesIfNeeded(path, originalBytes);
+          const totalChunks = Math.max(1, Math.ceil(finalBytes.length / (32 * 1024)));
+          await enqueueLocalRelay(transfer, () => postRelayJson(transfer, "/files/start", {
+            index: message.index,
+            path,
+            kind: "bytes",
+            size: finalBytes.length,
+            totalChunks
+          }));
+          for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * 32 * 1024;
+            const end = Math.min(finalBytes.length, start + 32 * 1024);
+            const chunk = finalBytes.slice(start, end);
+            transfer.totalBytes += chunk.length;
+            await enqueueLocalRelay(transfer, () => postRelayBytes(
+              transfer,
+              `/files/chunk?index=${encodeURIComponent(message.index)}&chunkIndex=${encodeURIComponent(chunkIndex)}`,
+              chunk
+            ));
+          }
+          file.bufferedChunks = null;
+        }
+        await enqueueLocalRelay(transfer, () => postRelayJson(transfer, "/files/end", {
+          index: message.index
+        }));
+        if (file) file.ended = true;
+        transfer.receivedFiles += 1;
+        success = true;
+      } catch (error) {
+        errorMessage = error.message || "本地文件写入失败";
+        console.error(`[MasterGo2Figma UI] Local relay file failed: ${errorMessage}`);
+      }
+
+      const pendingCount = transfer
+        ? Object.keys(transfer.files).filter(index => !transfer.files[index].ended).length
+        : 0;
+      send({
+        type: "export-file-finished",
+        transferId: message.transferId,
+        index: message.index,
+        success,
+        error: errorMessage,
+        pendingCount,
+        path
+      });
+    }
+
+    function abortLocalRelayFile(message) {
+      const transfer = getLocalRelayTransfer(message);
+      if (!transfer) return;
+      enqueueLocalRelay(transfer, () => postRelayJson(transfer, "/files/abort", {
+        index: message.index,
+        reason: message.reason || ""
+      })).catch(() => {});
+    }
+
+    async function completeLocalRelayTransfer(message) {
+      const transfer = getLocalRelayTransfer(message);
+      if (!transfer) {
+        send({
+          type: "export-transfer-finished",
+          transferId: message.transferId,
+          success: false,
+          error: "本地流传输不存在或已被重置",
+          pendingCount: 0,
+          filename: message.filename || ""
+        });
+        return;
+      }
+
+      let success = false;
+      let errorMessage = "";
+      let pendingCount = 0;
+      let outputDir = "";
+      let zipPath = "";
+
+      try {
+        pendingCount = Object.keys(transfer.files).filter(index => !transfer.files[index].ended).length;
+        if (pendingCount > 0) throw new Error(`本地流传输不完整（${pendingCount} 个文件未完成）`);
+        transfer.fileCount = message.fileCount || transfer.fileCount || transfer.receivedFiles;
+        transfer.stats = message.stats || transfer.stats;
+        const payload = await enqueueLocalRelay(transfer, () => postRelayJson(transfer, "/complete", {
+          filename: message.filename || transfer.filename,
+          fileCount: transfer.fileCount,
+          totalBytes: message.totalBytes || transfer.totalBytes,
+          stats: transfer.stats || {},
+          isFinal: message.isFinal !== false,
+          completedAt: new Date().toISOString()
+        }));
+        outputDir = payload.outputDir || "";
+        zipPath = payload.zipPath || "";
+        transfer.outputDir = outputDir;
+        if (message.isFinal !== false) bar.style.width = "100%";
+        status.textContent = message.isFinal === false ? "当前分包已写入本地，继续导出..." : "本地 zip 已生成";
+        status.classList.remove("error");
+        const stats = transfer.stats || {};
+        const imageAssetCount = stats.imageAssetCount || 0;
+        const missingImageAssetCount = stats.missingImageAssetCount || 0;
+        summary.textContent = `${zipPath || outputDir || transfer.transferId}，${stats.pageCount || 0} 个页面，${stats.layerCount || 0} 个图层，${imageAssetCount} 个图片资源${missingImageAssetCount ? `，${missingImageAssetCount} 个图片缺失` : ""}`;
+        success = true;
+      } catch (error) {
+        errorMessage = error.message || "本地流传输失败";
+        status.textContent = errorMessage;
+        status.classList.add("error");
+        summary.textContent = "请查看本地 Python 服务终端和插件控制台。";
+      } finally {
+        pendingCount = Object.keys(transfer.files).filter(index => !transfer.files[index].ended).length;
+      }
+
+      localRelayTransfer = null;
+      // Stay busy between segments (isFinal: false) so the UI doesn't unlock mid-export.
+      const keepBusy = success && message.isFinal === false;
+      setBusy(keepBusy);
+      send({
+        type: "export-transfer-finished",
+        transferId: message.transferId,
+        success,
+        error: errorMessage,
+        pendingCount,
+        filename: zipPath || outputDir || transfer.filename
+      });
+    }
+
+    function startExportTransfer(message) {
+      exportTransfer = {
+        transferId: message.transferId,
+        filename: message.filename || "mastergo2figma.zip",
+        fileCount: message.fileCount || 0,
+        pending: {},
+        receivedFiles: 0,
+        stats: message.stats || null,
+        encoder: new TextEncoder(),
+        localParts: [],
+        centralParts: [],
+        offset: 0
+      };
+    }
+
+    function getTransfer(message) {
+      if (!exportTransfer || exportTransfer.transferId !== message.transferId) return null;
+      return exportTransfer;
+    }
+
+    function startExportFile(message) {
+      const transfer = getTransfer(message);
+      if (!transfer) return;
+      const nameBytes = transfer.encoder.encode(message.path);
+      const compress = shouldCompressFile(message.path, message.size || 0);
+      const fileOffset = transfer.offset;
+      const localPartsStart = transfer.localParts.length;
+      const offsetBefore = transfer.offset;
+      if (!compress) {
+        const localHeader = new Uint8Array(30 + nameBytes.length);
+        const localView = new DataView(localHeader.buffer);
+        writeLocalHeader(localView, nameBytes.length, 0, 0, ZIP_FLAG_DATA_DESCRIPTOR);
+        localHeader.set(nameBytes, 30);
+        transfer.localParts.push(localHeader);
+        transfer.offset += localHeader.length;
+      }
+      transfer.pending[message.index] = {
+        path: message.path,
+        kind: message.kind,
+        nameBytes,
+        offset: fileOffset,
+        localPartsStart,
+        offsetBefore,
+        crc: -1,
+        size: 0,
+        compress,
+        bufferedChunks: compress ? [] : null
+      };
+    }
+
+    function appendExportFileChunk(message) {
+      const transfer = getTransfer(message);
+      if (!transfer) return;
+      const pending = transfer.pending[message.index];
+      if (!pending) return;
+      const data = pending.kind === "bytes"
+        ? normalizeBytes(message.bytes)
+        : transfer.encoder.encode(message.content || "");
+      if (pending.compress) {
+        pending.bufferedChunks.push(data);
+        return;
+      }
+      pending.crc = crc32Update(pending.crc, data);
+      pending.size += data.length;
+      transfer.localParts.push(data);
+      transfer.offset += data.length;
+    }
+
+    function writeWholeZipFile(transfer, pending, data) {
+      const localHeader = new Uint8Array(30 + pending.nameBytes.length);
+      const localView = new DataView(localHeader.buffer);
+      let crc = -1;
+      crc = crc32Update(crc, data);
+      const finalCrc = (crc ^ -1) >>> 0;
+      writeLocalHeader(localView, pending.nameBytes.length, finalCrc, data.length, 0);
+      localHeader.set(pending.nameBytes, 30);
+      pending.offset = transfer.offset;
+      transfer.localParts.push(localHeader);
+      transfer.localParts.push(data);
+      transfer.offset += localHeader.length + data.length;
+      const centralHeader = new Uint8Array(46 + pending.nameBytes.length);
+      const centralView = new DataView(centralHeader.buffer);
+      writeCentralHeader(centralView, pending.nameBytes.length, finalCrc, data.length, pending.offset, 0);
+      centralHeader.set(pending.nameBytes, 46);
+      transfer.centralParts.push(centralHeader);
+      pending.size = data.length;
+      pending.crc = finalCrc;
+    }
+
+    async function finishExportFile(message) {
+      const transfer = getTransfer(message);
+      if (!transfer) throw new Error("导出传输不存在或已被重置");
+      const pending = transfer.pending[message.index];
+      if (!pending) throw new Error(`导出文件不存在或已中止：${message.index}`);
+
+      const path = pending.path;
+      if (pending.compress) {
+        const originalBytes = concatUint8Arrays(pending.bufferedChunks || []);
+        const finalBytes = await compressImageBytesIfNeeded(path, originalBytes);
+        writeWholeZipFile(transfer, pending, finalBytes);
+        pending.bufferedChunks = null;
+      } else {
+        const crc = (pending.crc ^ -1) >>> 0;
+        const descriptor = new Uint8Array(16);
+        const descriptorView = new DataView(descriptor.buffer);
+        descriptorView.setUint32(0, 0x08074b50, true);
+        descriptorView.setUint32(4, crc, true);
+        descriptorView.setUint32(8, pending.size, true);
+        descriptorView.setUint32(12, pending.size, true);
+        transfer.localParts.push(descriptor);
+        transfer.offset += descriptor.length;
+
+        const centralHeader = new Uint8Array(46 + pending.nameBytes.length);
+        const centralView = new DataView(centralHeader.buffer);
+        writeCentralHeader(centralView, pending.nameBytes.length, crc, pending.size, pending.offset, ZIP_FLAG_DATA_DESCRIPTOR);
+        centralHeader.set(pending.nameBytes, 46);
+        transfer.centralParts.push(centralHeader);
+      }
+
+      delete transfer.pending[message.index];
+      transfer.receivedFiles += 1;
+      return path;
+    }
+
+    function abortExportFile(message) {
+      const transfer = getTransfer(message);
+      if (!transfer) return;
+      const pending = transfer.pending[message.index];
+      if (!pending) return;
+      transfer.localParts.splice(pending.localPartsStart);
+      transfer.offset = pending.offsetBefore;
+      delete transfer.pending[message.index];
+      console.warn(`[MasterGo2Figma UI] File transfer aborted: ${pending.path}; reason=${message.reason || ""}`);
+    }
+
+    async function acknowledgeExportFile(message) {
+      const transfer = getTransfer(message);
+      let success = false;
+      let errorMessage = "";
+      let path = message.path || "";
+
+      try {
+        path = await finishExportFile(message) || path;
+        success = true;
+      } catch (error) {
+        errorMessage = error.message || "导出文件写入失败";
+        console.error(`[MasterGo2Figma UI] File write failed: ${errorMessage}`);
+      }
+
+      const pendingCount = transfer ? Object.keys(transfer.pending).length : 0;
+      send({
+        type: "export-file-finished",
+        transferId: message.transferId,
+        index: message.index,
+        success,
+        error: errorMessage,
+        pendingCount,
+        path
+      });
+    }
+
+    async function completeExportTransfer(message) {
+      const transfer = getTransfer(message);
+      if (!transfer) {
+        send({
+          type: "export-transfer-finished",
+          transferId: message.transferId,
+          success: false,
+          error: "导出传输不存在或已被重置",
+          pendingCount: 0,
+          filename: message.filename || ""
+        });
+        return;
+      }
+      let blob = null;
+      let success = false;
+      let errorMessage = "";
+      let pendingCount = 0;
+
+      try {
+        pendingCount = Object.keys(transfer.pending).length;
+        if (pendingCount > 0) throw new Error(`导出数据接收不完整（${pendingCount} 个文件未完成）`);
+        transfer.fileCount = message.fileCount || transfer.fileCount || transfer.receivedFiles;
+        transfer.stats = message.stats || transfer.stats;
+        status.textContent = message.isFinal === false ? "正在准备当前分包..." : "正在打包 zip...";
+        status.classList.remove("error");
+        blob = finishZipBlob(transfer);
+        transfer.localParts = [];
+        transfer.centralParts = [];
+        await downloadBlob(blob, transfer.filename);
+        blob = null;
+        if (message.isFinal !== false) bar.style.width = "100%";
+        status.textContent = message.isFinal === false ? "当前分包已准备完成，继续导出..." : "下载已准备完成";
+        const stats = transfer.stats || {};
+        const imageAssetCount = stats.imageAssetCount || 0;
+        const missingImageAssetCount = stats.missingImageAssetCount || 0;
+        summary.textContent = `${stats.pageCount || 0} 个页面，${stats.layerCount || 0} 个图层，${imageAssetCount} 个图片资源${missingImageAssetCount ? `，${missingImageAssetCount} 个图片缺失` : ""}`;
+        success = true;
+      } catch (error) {
+        errorMessage = error.message || "zip 打包失败";
+        status.textContent = errorMessage;
+        status.classList.add("error");
+        summary.textContent = "导出数据已生成，但浏览器端打包失败。";
+      } finally {
+        pendingCount = Object.keys(transfer.pending).length;
+      }
+
+      const filename = transfer.filename;
+      exportTransfer = null;
+      setBusy(message.isFinal === false && success);
+      await waitForUIRelease();
+      send({
+        type: "export-transfer-finished",
+        transferId: message.transferId,
+        success,
+        error: errorMessage,
+        pendingCount,
+        filename
+      });
+    }
+
+    function normalizeBytes(value) {
+      if (value instanceof Uint8Array) return value;
+      if (Array.isArray(value)) return new Uint8Array(value);
+      if (value && typeof value.length === "number") return new Uint8Array(value);
+      if (value && typeof value === "object") {
+        const keys = Object.keys(value).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+        const bytes = new Uint8Array(keys.length);
+        keys.forEach((key, index) => {
+          bytes[index] = value[key];
+        });
+        return bytes;
+      }
+      return new Uint8Array();
+    }
+
+    window.onmessage = async (event) => {
+      const message = getPluginMessage(event);
+      if (!message) return;
+
+      if (message.type === "init") {
+        currentPageId = message.currentPageId || "";
+        currentPageName = message.currentPageName || "";
+        selectedNodes = message.selectedNodes || [];
+        pendingExportQueue = message.exportQueue || null;
+        renderPages(message.pages);
+        updateTransferMode();
+        updateScopeMode();
+        return;
+      }
+
+      if (message.type === "selection-updated") {
+        currentPageId = message.currentPageId || currentPageId;
+        currentPageName = message.currentPageName || currentPageName;
+        selectedNodes = message.selectedNodes || [];
+        if (getScopeMode() === "selected") {
+          renderSelectedNodes(selectedNodes);
+          status.textContent = selectedNodes.length > 0 ? "已刷新选中画板/图层" : "未读取到选中画板/图层";
+          status.classList.toggle("error", selectedNodes.length === 0);
+          summary.textContent = selectedNodes.length > 0
+            ? selectedNodes.map(node => node.name || "未命名图层").join("、")
+            : "请先在画布中选中要导出的顶层画板/图层。";
+        }
+        return;
+      }
+
+      if (message.type === "export-queue-updated") {
+        pendingExportQueue = message.exportQueue || null;
+        applyExportQueueSelection(pendingExportQueue);
+        setBusy(false);
+        return;
+      }
+
+      if (message.type === "export-queue-cleared") {
+        pendingExportQueue = null;
+        return;
+      }
+
+      if (message.type === "progress") {
+        setProgress(message.current || 0, message.total || 0, message.label);
+        return;
+      }
+
+      if (message.type === "main-relay-test-result") {
+        testMainRelay.disabled = isBusy;
+        if (message.ok) {
+          const detail = `主线程直连成功：HTTP ${message.status || 200}，${message.elapsedMs || 0}ms`;
+          status.textContent = detail;
+          status.classList.remove("error");
+          relayDiagnostic.textContent = `${detail}。可以考虑把上传链路移到 code.ts。`;
+          relayDiagnostic.classList.remove("error");
+          summary.textContent = `fetch=${message.fetchAvailable ? "可用" : "不可用"} · ${message.relayUrl || ""}`;
+        } else {
+          const errorText = message.error || "主线程直连失败";
+          status.textContent = errorText;
+          status.classList.add("error");
+          relayDiagnostic.textContent = `主线程直连失败：${errorText}`;
+          relayDiagnostic.classList.add("error");
+          summary.textContent = `fetch=${message.fetchAvailable ? "可用" : "不可用"} · ${message.relayUrl || ""}`;
+        }
+        return;
+      }
+
+      if (message.type === "export-transfer-start") {
+        if (isLocalRelayMessage(message)) {
+          startLocalRelayTransfer(message);
+        } else {
+          startExportTransfer(message);
+        }
+        return;
+      }
+
+      if (message.type === "export-file-start") {
+        if (isLocalRelayMessage(message)) {
+          startLocalRelayFile(message);
+        } else {
+          startExportFile(message);
+        }
+        return;
+      }
+
+      if (message.type === "export-file-chunk") {
+        if (isLocalRelayMessage(message)) {
+          appendLocalRelayFileChunk(message);
+        } else {
+          appendExportFileChunk(message);
+        }
+        return;
+      }
+
+      if (message.type === "export-file-end") {
+        if (isLocalRelayMessage(message)) {
+          await acknowledgeLocalRelayFile(message);
+        } else {
+          await acknowledgeExportFile(message);
+        }
+        return;
+      }
+
+      if (message.type === "export-file-abort") {
+        if (isLocalRelayMessage(message)) {
+          abortLocalRelayFile(message);
+        } else {
+          abortExportFile(message);
+        }
+        return;
+      }
+
+      if (message.type === "export-transfer-complete") {
+        if (isLocalRelayMessage(message)) {
+          await completeLocalRelayTransfer(message);
+        } else {
+          await completeExportTransfer(message);
+        }
+        return;
+      }
+
+      if (message.type === "export-ready") {
+        setProgress(message.manifest.stats.layerCount, message.manifest.stats.layerCount, "正在打包 zip...");
+        const blob = makeZipBlob(message.files);
+        downloadBlob(blob, message.filename || "mastergo2figma.zip");
+        bar.style.width = "100%";
+        status.textContent = "下载已准备完成";
+        const imageAssetCount = message.manifest.stats.imageAssetCount || 0;
+        const missingImageAssetCount = message.manifest.stats.missingImageAssetCount || 0;
+        summary.textContent = `${message.manifest.stats.pageCount} 个页面，${message.manifest.stats.layerCount} 个图层，${imageAssetCount} 个图片资源${missingImageAssetCount ? `，${missingImageAssetCount} 个图片缺失` : ""}`;
+        setBusy(false);
+        return;
+      }
+
+      if (message.type === "error") {
+        exportTransfer = null;
+        status.textContent = message.message || "导出失败";
+        status.classList.add("error");
+        summary.textContent = "请查看插件控制台获取更多信息。";
+        setBusy(false);
+      }
+    };
+
+    window.addEventListener("load", () => {
+      initManualWindowResize(400, 640);
+    send({ type: "ui-ready" });
+    });
+    updateTransferMode();
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function cssEscape(value) {
+      if (window.CSS && typeof window.CSS.escape === "function") return CSS.escape(value);
+      return String(value).replace(/"/g, '\\"');
+    }
+
+    const ZIP_FLAG_UTF8 = 0x0800;
+    const ZIP_FLAG_DATA_DESCRIPTOR = ZIP_FLAG_UTF8 | 0x0008;
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return new Promise(resolve => {
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          resolve();
+        }, 2000);
+      });
+    }
+
+    function waitForUIRelease() {
+      return new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    function appendZipFile(transfer, file) {
+      const nameBytes = transfer.encoder.encode(file.path);
+      const data = getFileBytes(file, transfer.encoder);
+      const crc = crc32(data);
+      const localHeader = new Uint8Array(30 + nameBytes.length);
+      const localView = new DataView(localHeader.buffer);
+      writeLocalHeader(localView, nameBytes.length, crc, data.length);
+      localHeader.set(nameBytes, 30);
+      transfer.localParts.push(localHeader, data);
+
+      const centralHeader = new Uint8Array(46 + nameBytes.length);
+      const centralView = new DataView(centralHeader.buffer);
+      writeCentralHeader(centralView, nameBytes.length, crc, data.length, transfer.offset);
+      centralHeader.set(nameBytes, 46);
+      transfer.centralParts.push(centralHeader);
+      transfer.offset += localHeader.length + data.length;
+    }
+
+    function finishZipBlob(transfer) {
+      const centralSize = transfer.centralParts.reduce((sum, part) => sum + part.length, 0);
+      const end = new Uint8Array(22);
+      const endView = new DataView(end.buffer);
+      const fileCount = transfer.centralParts.length;
+      endView.setUint32(0, 0x06054b50, true);
+      endView.setUint16(8, fileCount, true);
+      endView.setUint16(10, fileCount, true);
+      endView.setUint32(12, centralSize, true);
+      endView.setUint32(16, transfer.offset, true);
+      for (const part of transfer.centralParts) transfer.localParts.push(part);
+      transfer.localParts.push(end);
+      transfer.centralParts = [];
+      return new Blob(transfer.localParts, { type: "application/zip" });
+    }
+
+    function makeZipBlob(files) {
+      const encoder = new TextEncoder();
+      const transfer = {
+        encoder,
+        localParts: [],
+        centralParts: [],
+        offset: 0
+      };
+      for (const file of files) {
+        appendZipFile(transfer, file);
+      }
+      return finishZipBlob(transfer);
+    }
+
+    function getFileBytes(file, encoder) {
+      if (file.bytes !== undefined) {
+        if (file.bytes instanceof Uint8Array) return file.bytes;
+        if (Array.isArray(file.bytes)) return new Uint8Array(file.bytes);
+        if (file.bytes && typeof file.bytes.length === "number") return new Uint8Array(file.bytes);
+      }
+      return encoder.encode(file.content || "");
+    }
+
+    function writeLocalHeader(view, nameLength, crc, size, flags = ZIP_FLAG_UTF8) {
+      view.setUint32(0, 0x04034b50, true);
+      view.setUint16(4, 20, true);
+      view.setUint16(6, flags, true);
+      view.setUint16(8, 0, true);
+      view.setUint16(10, 0, true);
+      view.setUint16(12, 0, true);
+      view.setUint32(14, crc, true);
+      view.setUint32(18, size, true);
+      view.setUint32(22, size, true);
+      view.setUint16(26, nameLength, true);
+      view.setUint16(28, 0, true);
+    }
+
+    function writeCentralHeader(view, nameLength, crc, size, offset, flags = ZIP_FLAG_UTF8) {
+      view.setUint32(0, 0x02014b50, true);
+      view.setUint16(4, 20, true);
+      view.setUint16(6, 20, true);
+      view.setUint16(8, flags, true);
+      view.setUint16(10, 0, true);
+      view.setUint16(12, 0, true);
+      view.setUint16(14, 0, true);
+      view.setUint32(16, crc, true);
+      view.setUint32(20, size, true);
+      view.setUint32(24, size, true);
+      view.setUint16(28, nameLength, true);
+      view.setUint16(30, 0, true);
+      view.setUint16(32, 0, true);
+      view.setUint16(34, 0, true);
+      view.setUint16(36, 0, true);
+      view.setUint32(38, 0, true);
+      view.setUint32(42, offset, true);
+    }
+
+    function crc32(bytes) {
+      return (crc32Update(-1, bytes) ^ -1) >>> 0;
+    }
+
+    function crc32Update(crc, bytes) {
+      for (let i = 0; i < bytes.length; i++) {
+        crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 0xff];
+      }
+      return crc;
+    }
+
+    const crcTable = (() => {
+      const table = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) {
+          c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        }
+        table[i] = c >>> 0;
+      }
+      return table;
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "ReceiveFromMasterGo Optimized v16",
+  "id": "1187658562814194202",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figma"
+  ]
+}
